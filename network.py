@@ -104,43 +104,48 @@ def build_conv_network(args):
     Simple convolutional network without pooling. Ignores most input parameters.
     """
     DP = load_data_provider(args)
-    
     input_length = DP.full_input_length()
     x = tf.placeholder(tf.float32, shape=[None, input_length], name="input")
     t = tf.placeholder(tf.float32, shape=[None, DP.target_length],name="target")
     reshaped_input = tf.reshape(x, [-1, 2, 7, 6])
-    last_layer = tf.transpose(reshaped_input, perm=[0,2,3,1])
-    
+    input_layer = tf.transpose(reshaped_input, perm=[0,2,3,1])
+
+
     # Convolutional layer
     num_fmaps = 4
-    W = weight_variable([4, 4, 2, num_fmaps])
-    b = bias_variable([num_fmaps])
+    W1 = weight_variable([4, 4, 2, num_fmaps])
+    b1 = bias_variable([num_fmaps])
     
-    h = tf.nn.relu(tf.nn.conv2d(last_layer, W, strides=[1,1,1,1],
+    h1 = tf.nn.relu(tf.nn.conv2d(input_layer, W1, strides=[1,1,1,1],
                                 padding='SAME')
-                   + b)
-    
+                   + b1)
+
     # Fully connected layer
     connected_layer_size = 200
-    W = weight_variable([4*3 * num_fmaps, connected_layer_size])
-    b = bias_variable([connected_layer_size])
+    W2 = weight_variable([7*6 * num_fmaps, connected_layer_size])
+    b2 = bias_variable([connected_layer_size])
     
-    h = tf.reshape(h, [-1, 4*3 * num_fmaps])
-    last_layer = tf.nn.relu(tf.matmul(h, W) + b)
-    
+    reshaped_h1 = tf.reshape(h1, [-1, 7*6 * num_fmaps])
+    h2 = tf.nn.relu(tf.matmul(reshaped_h1, W2) + b2)
+
     # Softmax layer
-    W = weight_variable([connected_layer_size, DP.target_length])
-    b = bias_variable([DP.target_length])
+    W3 = weight_variable([connected_layer_size, DP.target_length])
+    b3 = bias_variable([DP.target_length])
     
-    last_layer = tf.matmul(last_layer, W) + b
+    last_layer = tf.matmul(h2, W3) + b3
     
-    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=t,
-                                                            logits=last_layer)
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=t,
+                                                            logits=last_layer))
     train_op = tf.train.AdamOptimizer(
         args.learning_rate).minimize(cross_entropy)
     correct_prediction = tf.equal(tf.argmax(t, 1), tf.argmax(last_layer, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32),
+                              name="acc")
     
+    # Summary info for TensorBoard
+    tf.summary.scalar('accuracy', accuracy)
+    tf.summary.scalar('loss', cross_entropy)
+
     train_network(args, DP, x, t, train_op,
                   tracked_vars=[("accuracy", accuracy),
                                 ("loss", cross_entropy)])
@@ -194,8 +199,10 @@ def train_network(args, data_provider,
                 inputs, targets = data_provider.next_batch(dp.VAL,
                                                     data_provider.size(dp.VAL))
                 feed = { input_var: inputs, target_var: targets }
+
                 outputs = sess.run([summaries] + tracked_var_list,
                                    feed_dict=feed)
+                
                 summary = outputs[0]
                 tracked_var_outputs = outputs[1:]
                 writer.add_summary(summary, epoch+args.continue_from)
@@ -278,7 +285,7 @@ if __name__ == "__main__":
     args.set_size = str_to_list(args.set_size, cast_fn=float)
     args.train_proportion = args.set_size[0]
     args.val_proportion = args.set_size[1]
-    
+
     if args.type == "feedforward":
         build_network(args)
     elif args.type == "conv":
