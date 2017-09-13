@@ -25,6 +25,6 @@ and then run the second script to install TensorFlow.
 The included script will download and install Python 3 and set up a virtualenv
 virtual environment. Activate it by running
 ```
-source ./tf/bin/activate/
+source ./tf/bin/activate
 ```
 and then run the second script to install TensorFlow.
