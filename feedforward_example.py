@@ -16,6 +16,8 @@ DP = dp.DataProvider("./data/dataset_c4.pkl",           # Data file
                     val_proportion=0.1)
 
 # Build network
+
+# Define inputs and outputs
 input_length = DP.full_input_length()
 target_length = DP.target_length
 x = tf.placeholder(tf.float32, shape=[None, input_length], name="input")
@@ -32,6 +34,18 @@ bo = tf.Variable(tf.constant(0.1, shape=[target_length]))
 # Layers
 hidden_layer = tf.nn.relu_layer(x, Wh, bh)
 output_layer = tf.matmul(hidden_layer, Wo) + bo
+
+# Generally, in a classification problem, we want to be able to interpret the
+# outputs of the final layer as probabilities that the input belongs to each
+# class. We do this when we calculate the loss, below: the
+# softmax_cross_entropy_with_logits() function normalises the output layer so
+# that it adds up to 1 before calculating the loss. If we just want the
+# normalisation (for example, to output to our Connect Four AI), we can use
+final_output = tf.nn.softmax(output_layer)
+# N.B. in this code, this value is never calculated, because all we do here is
+# train the network. But if we wanted to use the network after it was trained,
+# this is the value we would use.
+# i.e. output = sess.run(final_output, feed_dict={ x: my_input })
 
 # We have built the network. Now specify loss function for training.
 cross_entropy = tf.reduce_mean(
@@ -56,8 +70,10 @@ with tf.Session() as sess:
         print("Beginning epoch {}.".format(epoch+1))
         # Calculate accuracy on validation set.
         inputs, targets = DP.next_batch(dp.VAL, DP.size(dp.VAL))
-        acc = sess.run(accuracy, feed_dict={ x: inputs, t: targets })
+        acc, loss = sess.run([accuracy, cross_entropy],
+                             feed_dict={ x: inputs, t: targets })
         print("Validation set accuracy: {:.1f}%.".format(acc*100))
+        print("Validation set loss: {:.7f}".format(loss))
         
         # Train on training set in batches
         for _ in range(DP.num_batches(dp.TRAIN, batch_size)):
@@ -67,5 +83,7 @@ with tf.Session() as sess:
     print("Finished training.")
     # Calculate accuracy on test set.
     inputs, targets = DP.next_batch(dp.TEST, DP.size(dp.TEST))
-    acc = sess.run(accuracy, feed_dict={x: inputs, t: targets})
+    acc, loss = sess.run([accuracy, cross_entropy],
+                         feed_dict={x: inputs, t: targets})
     print("Test set accuracy: {:.1f}%.".format(acc*100))
+    print("Test set loss: {:.7f}".format(loss))

@@ -17,15 +17,20 @@ DP = dp.DataProvider("./data/dataset_c4.pkl",           # Data file
                     val_proportion=0.1)
 
 # Build network
+
+# Define inputs and outputs
 input_length = DP.full_input_length()
 target_length = DP.target_length
 x = tf.placeholder(tf.float32, shape=[None, input_length], name="input")
 t = tf.placeholder(tf.float32, shape=[None, target_length], name="target")
 
-# Reshape input from a vector into two grids
-reshaped_input = tf.reshape(x, [-1, 2, 7, 6])
+# The data provider gives the state of the game as a vector where the first
+# 7*6 elements are "my pieces" and the second 7*6 elements are "your pieces".
+# We need to reshape this into the standard format which is a 4D tensor of
+# dimensions [index, height, width, feature map]. Here, the two players will be
+# the two feature maps.
+reshaped_input = tf.reshape(x, [-1, 2, 6, 7])
 input_layer = tf.transpose(reshaped_input, perm=[0, 2, 3, 1])
-# The dimensions of input_layer now correspond to [batch, width, height, player]
 
 # Convolutional layer
 Wc = tf.Variable(tf.truncated_normal([4, 4, 2, num_fmaps], stddev=0.1))
@@ -66,8 +71,10 @@ with tf.Session() as sess:
         print("Beginning epoch {}.".format(epoch+1))
         # Calculate accuracy on validation set.
         inputs, targets = DP.next_batch(dp.VAL, DP.size(dp.VAL))
-        acc = sess.run(accuracy, feed_dict={ x: inputs, t: targets })
+        acc, loss = sess.run([accuracy, cross_entropy],
+                             feed_dict={ x: inputs, t: targets })
         print("Validation set accuracy: {:.1f}%.".format(acc*100))
+        print("Validation set loss: {:.7f}.".format(loss))
         
         # Train on training set in batches
         for _ in range(DP.num_batches(dp.TRAIN, batch_size)):
@@ -77,5 +84,7 @@ with tf.Session() as sess:
     print("Finished training.")
     # Calculate accuracy on test set.
     inputs, targets = DP.next_batch(dp.TEST, DP.size(dp.TEST))
-    acc = sess.run(accuracy, feed_dict={x: inputs, t: targets})
+    acc, loss = sess.run([accuracy, cross_entropy],
+                         feed_dict={x: inputs, t: targets})
     print("Test set accuracy: {:.1f}%.".format(acc*100))
+    print("Test set loss: {:.7f}%.".format(loss))

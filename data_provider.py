@@ -10,8 +10,6 @@ TEST = 2
 class DataProvider:
     """
     Datasets stored in 2D arrays. Each row is an example.
-    Assumes (for purposes of LSTM input) that the data aren't shuffled: each
-    round must be a consecutive set of tricks in the data.
     """
     dataset = None
     train_set = None
